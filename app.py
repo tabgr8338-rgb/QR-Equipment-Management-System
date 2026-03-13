@@ -1,74 +1,36 @@
 import streamlit as st
 import pandas as pd
-import sqlite3
-from datetime import datetime
+import gspread
+from google.oauth2.service_account import Credentials
 import urllib.parse
+from datetime import datetime
 
-DB = "inventory.db"
-CSV = "items.csv"
+# -----------------------------
+# Google Sheets 接続
+# -----------------------------
 
-# ----------------------------
-# DB接続
-# ----------------------------
+scope = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 
-conn = sqlite3.connect(DB, check_same_thread=False)
-cursor = conn.cursor()
-
-# ----------------------------
-# 初期テーブル作成
-# ----------------------------
-
-cursor.execute("""
-CREATE TABLE IF NOT EXISTS items (
-code TEXT PRIMARY KEY,
-name TEXT,
-location TEXT,
-box TEXT,
-order_qty INTEGER,
-status TEXT,
-person TEXT,
-order_date TEXT
-)
-""")
-
-conn.commit()
-
-# ----------------------------
-# CSV → DB 初期登録
-# ----------------------------
-
-df = pd.read_csv(CSV, encoding="cp932")
-
-df["科目"] = df["科目"].astype(str).str.zfill(2)
-df["種類"] = df["種類"].astype(str).str.zfill(2)
-df["ID"] = df["ID"].astype(str).str.zfill(3)
-df["箱"] = df["箱"].astype(str).str.zfill(2)
-
-df["code"] = (
-df["科目"]+"-"+df["種類"]+"-"+df["ID"]+"-"+df["棚"]+"-"+df["箱"]
+creds = Credentials.from_service_account_file(
+    "credentials.json",
+    scopes=scope
 )
 
-for _,r in df.iterrows():
+client = gspread.authorize(creds)
 
-    cursor.execute("""
-    INSERT OR IGNORE INTO items
-    VALUES (?,?,?,?,?,?,?,?)
-    """,(
-        r["code"],
-        r["品名"],
-        r["棚"],
-        r["箱"],
-        r["発注量"],
-        "未発注",
-        "",
-        ""
-    ))
+SHEET_URL = "あなたのGoogleシートURL"
 
-conn.commit()
+sheet = client.open_by_url(SHEET_URL).sheet1
 
-# ----------------------------
-# 画面
-# ----------------------------
+data = sheet.get_all_records()
+df = pd.DataFrame(data)
+
+# -----------------------------
+# QR読み取り
+# -----------------------------
 
 st.title("工場備品QR発注")
 
@@ -76,81 +38,83 @@ code = st.text_input("QRコード")
 
 if code:
 
-    item = cursor.execute(
-    "SELECT * FROM items WHERE code=?",
-    (code,)
-    ).fetchone()
+    item = df[df["品番"] == code]
 
-    if not item:
-        st.error("備品が見つかりません")
-        st.stop()
+    if item.empty:
+        st.error("品番なし")
+    else:
 
-    name = item[1]
-    location = item[2]
-    box = item[3]
-    qty = item[4]
-    status = item[5]
+        item = item.iloc[0]
 
-    st.subheader(name)
-    st.write("棚:",location)
-    st.write("箱:",box)
-    st.write("状態:",status)
+        st.subheader(item["品名"])
 
-    person = st.text_input("発注者")
+        st.write("棚:", item["棚"])
+        st.write("箱:", item["箱"])
+        st.write("発注型式:", item["発注型式"])
+        st.write("数量:", item["発注数量"])
+        st.write("発注先:", item["発注先"])
 
-# ----------------------------
-# 発注
-# ----------------------------
+        # -----------------------------
+        # 重複発注チェック
+        # -----------------------------
 
-    if status == "未発注":
+        if item["状態"] == "発注中":
 
-        if st.button("発注"):
+            st.error("⚠既に発注中")
 
-            if person == "":
-                st.error("名前入力")
-                st.stop()
+            st.write("発注者:", item["発注者"])
+            st.write("発注日:", item["発注日"])
 
-            cursor.execute("""
-            UPDATE items
-            SET status='発注中',
-                person=?,
-                order_date=?
-            WHERE code=?
-            """,(person,datetime.now(),code))
+        else:
 
-            conn.commit()
+            name = st.text_input("発注者")
 
-            subject = f"備品発注 {name}"
+            if st.button("発注メール作成"):
 
-            body = f"""
-品名:{name}
+                subject = "備品発注"
+
+                body = f"""
 品番:{code}
-数量:{qty}
-発注者:{person}
+品名:{item['品名']}
+型式:{item['発注型式']}
+数量:{item['発注数量']}
+発注先:{item['発注先']}
+棚:{item['棚']}
+箱:{item['箱']}
 """
 
-            url = f"mailto:?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
+                mail = f"mailto:?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
 
-            st.success("発注登録しました")
+                st.markdown(f"[メール作成]({mail})")
 
-            st.markdown(f"[メール送信]( {url} )")
+                # シート更新
 
-# ----------------------------
-# 入荷
-# ----------------------------
+                row = df.index[df["品番"] == code][0] + 2
 
-    if status == "発注中":
+                sheet.update_cell(row, 14, "発注中")
+                sheet.update_cell(row, 15, name)
+                sheet.update_cell(row, 16, str(datetime.today().date()))
 
-        if st.button("入荷処理"):
+                st.success("発注登録しました")
 
-            cursor.execute("""
-            UPDATE items
-            SET status='未発注',
-                person='',
-                order_date=''
-            WHERE code=?
-            """,(code,))
+# -----------------------------
+# 入荷処理
+# -----------------------------
 
-            conn.commit()
+st.divider()
 
-            st.success("入荷登録しました")
+st.subheader("入荷処理")
+
+code2 = st.text_input("入荷QR")
+
+if code2:
+
+    row = df.index[df["品番"] == code2][0] + 2
+
+    if st.button("入荷登録"):
+
+        sheet.update_cell(row, 14, "在庫")
+        sheet.update_cell(row, 15, "")
+        sheet.update_cell(row, 16, "")
+
+        st.success("在庫に戻しました")
