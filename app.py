@@ -3,17 +3,13 @@ import requests
 import urllib.parse
 
 # ==========================================
-# 1. 基本設定
+# 1. 基本設定（テスト用：URL直書き）
 # ==========================================
-# ❌ 間違い: st.secrets["https://..."] 
-# ✅ 正解: st.secrets["GAS_URL"]
-
-try:
-    GAS_URL = st.secrets["GAS_URL"]
-except:
+GAS_URL = st.secrets.get("GAS_URL", "")
+if not GAS_URL:
     st.error("Secrets に GAS_URL が設定されていません。")
     st.stop()
-    
+
 # ==========================================
 # 2. GAS API 呼び出し関数
 # ==========================================
