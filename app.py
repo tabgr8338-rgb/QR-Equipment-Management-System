@@ -8,7 +8,7 @@ from google.oauth2.service_account import Credentials
 # ==========================================
 # 1. 設定（GASのURLを自分のものに書き換えてください）
 # ==========================================
-GAS_URL = "https://script.google.com/macros/s/AKfycbzTfWNIiGoPKZtLlTVBQGIFGDstVTNNGShGtpbK61ce_JS1tslkt0UHGdMRAyRIY98_/exec"
+GAS_URL = "https://script.google.com/macros/s/AKfycbxLHLHTCrqU2wquAqT936P-XKAv9GnLNX-Rk-W0crI9Twg7HV62D1nhgX1JZzU83tVN/exec"
 SHEET_NAME = "Equipment Management Sheet"
 WORKSHEET_NAME = "備品マスター"
 
