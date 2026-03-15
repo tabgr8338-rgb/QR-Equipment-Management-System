@@ -6,15 +6,10 @@ import urllib.parse
 # 1. 基本設定
 # ==========================================
 # Streamlit Cloud の Secrets に設定した GAS_URL を読み込む
-GAS_URL = "https://script.google.com/macros/s/AKfycbxLHLHTCrqU2wquAqT936P-XKAv9GnLNX-Rk-W0crI9Twg7HV62D1nhgX1JZzU83tVN/exec"
-# デバッグ用：Secretsのキーをすべて画面に出す
-st.write("現在認識されているSecretsのキー:", list(st.secrets.keys()))
-
-if "GAS_URL" in st.secrets:
-    GAS_URL = st.secrets["GAS_URL"]
-    st.write("GAS_URLを検知しました！")
-else:
-    st.error("GAS_URL が見つかりません。")
+try:
+    GAS_URL = st.secrets["https://script.google.com/macros/s/AKfycbxzSvCpR-wSPLaz6lgfWYRWUe23gIlQjS8Wgyys13HML6tic_29QPAFmy_j08WPmqQI/exec"]
+except:
+    st.error("Secrets に GAS_URL が設定されていません。")
     st.stop()
 
 # ==========================================
