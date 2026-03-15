@@ -11,6 +11,15 @@ try:
 except:
     st.error("Secrets に GAS_URL が設定されていません。")
     st.stop()
+# デバッグ用：Secretsのキーをすべて画面に出す
+st.write("現在認識されているSecretsのキー:", list(st.secrets.keys()))
+
+if "GAS_URL" in st.secrets:
+    GAS_URL = st.secrets["GAS_URL"]
+    st.write("GAS_URLを検知しました！")
+else:
+    st.error("GAS_URL が見つかりません。")
+    st.stop()
 
 # ==========================================
 # 2. GAS API 呼び出し関数
