@@ -5,13 +5,15 @@ import urllib.parse
 # ==========================================
 # 1. 基本設定
 # ==========================================
-# Streamlit Cloud の Secrets に設定した GAS_URL を読み込む
+# ❌ 間違い: st.secrets["https://..."] 
+# ✅ 正解: st.secrets["GAS_URL"]
+
 try:
-    GAS_URL = st.secrets["https://script.google.com/macros/s/AKfycbxzSvCpR-wSPLaz6lgfWYRWUe23gIlQjS8Wgyys13HML6tic_29QPAFmy_j08WPmqQI/exec"]
+    GAS_URL = st.secrets["GAS_URL"]
 except:
     st.error("Secrets に GAS_URL が設定されていません。")
     st.stop()
-
+    
 # ==========================================
 # 2. GAS API 呼び出し関数
 # ==========================================
