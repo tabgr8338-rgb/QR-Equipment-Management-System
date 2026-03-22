@@ -80,7 +80,7 @@ if data.get("status") == "error":
     st.stop()
 
 # --- 10. APIバージョンチェック（厳格） ---
-if data.get("version") != 2:
+if data.get("version") != 3:
     st.error("⚠️ システム不整合（バージョン不一致）")
     st.stop()
 
