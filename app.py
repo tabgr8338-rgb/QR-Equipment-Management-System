@@ -7,7 +7,7 @@ st.set_page_config(page_title="備品管理Pro", page_icon="📦")
 
 # Secretsから設定取得（事前にStreamlit CloudのSettingsで設定が必要）
 GAS_URL = st.secrets.get("https://script.google.com/macros/s/AKfycbyPzdk1rcOjOVo9yy6war8b4_y6dj1VJKzGldh4iblhawgfG_xdqTVYmRq4Ci3dUxhu/exec")
-API_TOKEN = st.secrets.get("API_TOKEN")
+API_TOKEN = st.secrets.get("EMSystem-qr-secure-2026")
 
 if not GAS_URL or not API_TOKEN:
     st.error("⚠️ 設定エラー: Secretsに GAS_URL と API_TOKEN を登録してください。")
