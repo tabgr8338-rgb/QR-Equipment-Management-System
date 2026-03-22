@@ -5,13 +5,17 @@ import urllib.parse
 # --- 1. ページ設定 ---
 st.set_page_config(page_title="備品管理Pro [公式]", page_icon="📦", layout="centered")
 
-# --- 2. セッション初期化（連打防止・入力補助） ---
+# --- 2. セッション初期化 ---
 if "processing" not in st.session_state:
     st.session_state.processing = False
 if "user_name" not in st.session_state:
     st.session_state.user_name = ""
+if "confirm_arrival" not in st.session_state:
+    st.session_state.confirm_arrival = False
+if "done" not in st.session_state:
+    st.session_state.done = False
 
-# --- 3. モバイル最適化CSS ---
+# --- 3. CSS ---
 st.markdown("""
 <style>
 .stButton>button { 
@@ -72,124 +76,140 @@ def call_gas(method, payload=None):
 with st.spinner("データを取得中..."):
     data = call_gas("GET")
 
-# --- 9. 通信エラー処理（リトライ導線） ---
+# --- 9. エラー処理 ---
 if data.get("status") == "error":
     st.error(f"⚠️ {data.get('message')}")
     if st.button("🔄 再試行する"):
         st.rerun()
     st.stop()
 
-# --- 10. APIバージョンチェック（厳格） ---
+# --- 10. バージョンチェック ---
 if data.get("version") != 3:
     st.error("⚠️ システム不整合（バージョン不一致）")
     st.stop()
 
-# --- 11. 正常処理 ---
-if data.get("status") == "ok":
-    item = data["item"]
-    status = item.get("状態", "在庫")
+# --- 11. データ安全取得 ---
+item = data.get("item", {})
+if not item:
+    st.error("データ形式エラー")
+    st.stop()
 
-    # --- 情報カード ---
-    st.markdown(f"""
-    <div class="status-card">
-        <p class="item-id">品番: {target_code}</p>
-        <div class="item-name">{item['品名']}</div>
-        <div class="item-loc">📍 {item['棚']} - {item['箱']}</div>
-    </div>
-    """, unsafe_allow_html=True)
+status = item.get("状態", "在庫")
 
-    # 軽量ログ表示（現場安心）
-    st.caption(f"source: {src} / code: {target_code}")
+# --- viewログ送信 ---
+call_gas("POST", {"action": "view"})
 
-    st.divider()
+# --- 表示 ---
+st.markdown(f"""
+<div class="status-card">
+    <p class="item-id">品番: {target_code}</p>
+    <div class="item-name">{item.get('品名','-')}</div>
+    <div class="item-loc">📍 {item.get('棚','-')} - {item.get('箱','-')}</div>
+</div>
+""", unsafe_allow_html=True)
 
-    # =========================
-    # 発注中モード
-    # =========================
-    if status == "発注中":
-        st.error("🛑 現在【発注中】です")
-        st.write(f"👤 {item.get('発注者', '不明')} / 📅 {item.get('発注日', '-')}")
+st.caption(f"source: {src} / code: {target_code}")
 
-        if st.button("✅ 現物が届いた（入荷処理）",
-                     use_container_width=True,
-                     disabled=st.session_state.processing):
+st.divider()
 
-            st.session_state.processing = True
-            try:
-                with st.spinner("更新中..."):
-                    res = call_gas("POST", {"action": "arrival"})
-            finally:
-                st.session_state.processing = False
+# =========================
+# 発注中
+# =========================
+if status == "発注中":
+    st.error("🛑 現在【発注中】です")
+    st.write(f"👤 {item.get('発注者', '不明')} / 📅 {item.get('発注日', '-')}")
 
-            if res.get("status") == "ok":
-                st.success("在庫を更新しました！")
-                st.balloons()
-                st.rerun()
-            else:
-                st.error("更新に失敗しました")
-
-    # =========================
-    # 在庫ありモード
-    # =========================
+    if not st.session_state.confirm_arrival:
+        if st.button("✅ 現物が届いた（入荷処理）", use_container_width=True, disabled=st.session_state.processing):
+            st.session_state.confirm_arrival = True
+            st.rerun()
     else:
-        st.success("🟢 在庫あり（発注可能）")
+        st.warning("⚠️ 入荷処理を実行しますか？")
+        col_yes, col_no = st.columns(2)
 
-        col1, col2 = st.columns(2)
-        with col1:
-            st.caption("型式")
-            st.write(item.get('発注型式', '-'))
-        with col2:
-            st.caption("単位")
-            st.write(f"{item.get('発注数量', '')} {item.get('発注単位', '')}")
-
-        st.divider()
-
-        # 入力補助（記憶）
-        requester = st.text_input(
-            "👤 あなたの名前",
-            value=st.session_state.user_name,
-            placeholder="例：山田"
-        )
-
-        if requester:
-            st.session_state.user_name = requester
-
-        # 発注ボタン
-        if st.button("🚀 発注を確定する",
-                     type="primary",
-                     use_container_width=True,
-                     disabled=st.session_state.processing):
-
-            if not requester:
-                st.warning("担当者名を入力してください")
-            else:
+        with col_yes:
+            if st.button("✅ はい、実行する", type="primary", use_container_width=True, disabled=st.session_state.processing):
+                st.session_state.confirm_arrival = False
                 st.session_state.processing = True
+
+                res = {"status": "error"}
                 try:
-                    with st.spinner("送信中..."):
-                        res = call_gas("POST", {
-                            "action": "order",
-                            "requester": requester
-                        })
+                    with st.spinner("更新中..."):
+                        res = call_gas("POST", {"action": "arrival"})
                 finally:
                     st.session_state.processing = False
 
                 if res.get("status") == "ok":
-                    # 成功後ロック（再操作防止）
-                    st.session_state.processing = True
-
-                    subject = f"【備品発注】{item['品名']}"
-                    body = f"品目: {item['品名']}\n型式: {item['発注型式']}\n依頼者: {requester}"
-                    mailto = f"mailto:?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
-
-                    st.success("発注を記録しました！")
+                    st.success("在庫を更新しました！")
                     st.balloons()
-                    st.link_button("📧 承認依頼メールを作成", mailto, use_container_width=True)
-
+                    st.rerun()
                 else:
-                    st.error(f"エラー: {res.get('status')}")
+                    st.error(f"更新失敗: {res.get('message', '不明なエラー')}")
+
+        with col_no:
+            if st.button("❌ いいえ、戻る", use_container_width=True):
+                st.session_state.confirm_arrival = False
+                st.rerun()
+
+# =========================
+# 在庫あり
+# =========================
+else:
+    if st.session_state.done:
+        st.success("発注済みです")
+        st.stop()
+
+    st.success("🟢 在庫あり（発注可能）")
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.caption("型式")
+        st.write(item.get('発注型式', '-'))
+    with col2:
+        st.caption("単位")
+        st.write(f"{item.get('発注数量', '')} {item.get('発注単位', '')}")
+
+    st.divider()
+
+    requester = st.text_input("👤 あなたの名前", value=st.session_state.user_name, placeholder="例：山田")
+
+    if requester:
+        st.session_state.user_name = requester
+
+    # 在庫不一致
+    if st.button("👀 現物なし（在庫不一致）"):
+        call_gas("POST", {"action": "report_missing"})
+        st.warning("在庫不一致を報告しました")
+
+    if st.button("🚀 発注を確定する", type="primary", use_container_width=True, disabled=st.session_state.processing):
+
+        if not requester:
+            st.warning("担当者名を入力してください")
+        else:
+            st.session_state.processing = True
+
+            res = {"status": "error"}
+            try:
+                with st.spinner("送信中..."):
+                    res = call_gas("POST", {"action": "order", "requester": requester})
+            finally:
+                st.session_state.processing = False
+
+            if res.get("status") == "ok":
+                st.session_state.done = True
+
+                subject = f"【備品発注】{item.get('品名','')}"
+                body = f"品目: {item.get('品名','')}\n型式: {item.get('発注型式','')}\n依頼者: {requester}"
+                mailto = f"mailto:?subject={urllib.parse.quote(subject)}&body={urllib.parse.quote(body)}"
+
+                st.success("発注を記録しました！")
+                st.balloons()
+                st.link_button("📧 承認依頼メールを作成", mailto, use_container_width=True)
+            else:
+                st.error(f"エラー: {res.get('message','不明なエラー')}")
 
 # --- 12. 品番エラー ---
-else:
+if data.get("status") != "ok":
     st.error("❌ 該当する品番が見つかりません")
     if st.button("🔄 最初に戻る"):
         st.query_params.clear()
