@@ -176,10 +176,6 @@ else:
     if requester:
         st.session_state.user_name = requester
 
-    # 在庫不一致
-    if st.button("👀 現物なし（在庫不一致）"):
-        call_gas("POST", {"action": "report_missing"})
-        st.warning("在庫不一致を報告しました")
 
     if st.button("🚀 発注を確定する", type="primary", use_container_width=True, disabled=st.session_state.processing):
 
