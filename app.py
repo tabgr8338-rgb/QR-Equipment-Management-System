@@ -17,7 +17,7 @@ st.markdown("""
         border: 2px solid #007bff;
         margin-top: 10px;
     }
-    /* 情報カード：余白を最小限にし、文字を大きく */
+    /* 情報カード：余白を削り、文字を最大化 */
     .status-card { 
         padding: 10px 15px; 
         border-radius: 10px; 
@@ -30,6 +30,9 @@ st.markdown("""
     .item-id { font-size: 0.8rem; color: #666; margin: 0; }
     .item-name { font-size: 2.0rem; font-weight: bold; color: #1a1a1a; margin: 4px 0; }
     .item-loc { font-size: 1.6rem; color: #007bff; font-weight: bold; margin: 0; }
+    
+    /* ラベル文字の調整 */
+    .info-label { color: #666; font-size: 0.9rem; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -41,12 +44,12 @@ except Exception as e:
     st.error(f"❌ Secrets読み込みエラー: {e}")
     st.info("Streamlit CloudのSettings > Secretsを確認してください。")
     st.stop()
-    
-# URLパラメータ解析
+
+# URLパラメータ取得
 params = st.query_params
 target_code = str(params.get("code", ""))
 
-# --- 2. 画面分岐 ---
+# --- 2. 画面分岐（スキャン待ち） ---
 if not target_code:
     st.title("📦 備品管理システム")
     st.info("💡 **QRコードをスキャンしてください**")
@@ -66,7 +69,7 @@ def call_gas(method, payload=None):
         return {"status": "error", "message": f"通信失敗: {str(e)}"}
 
 # --- 4. メインUI表示 ---
-with st.spinner("確認中..."):
+with st.spinner("データを取得中..."):
     data = call_gas("GET")
 
 if data.get("status") == "ok":
@@ -82,25 +85,36 @@ if data.get("status") == "ok":
         </div>
         """, unsafe_allow_html=True)
 
-    # 状態に応じたアクション
+    st.divider()
+
+    # --- 状態に応じたボタン・入力欄の表示 ---
     if status == "発注中":
-        st.error(f"🛑 **【発注中】** {item.get('発注者', '担当者不明')}様が依頼済み")
-        st.caption(f"📅 依頼日: {item.get('発注日', '-')}")
+        st.error(f"🛑 **現在【発注中】です**")
+        st.write(f"👤 **依頼者:** {item.get('発注者', '不明')}")
+        st.write(f"📅 **発注日:** {item.get('発注日', '-')}")
         
-        if st.button("✅ 入荷完了（在庫に戻す）", use_container_width=True):
+        st.write("---")
+        # ✅ 入荷完了（入荷処理）ボタン
+        if st.button("✅ 現物が届いた（入荷処理）", use_container_width=True):
             with st.spinner("更新中..."):
                 res = call_gas("POST", {"action": "arrival"})
                 if res.get("status") == "ok":
                     st.balloons()
                     st.success("在庫を更新しました！")
                     st.rerun()
+                else:
+                    st.error(f"更新失敗: {res.get('status')}")
     
     else:
         st.success("🟢 **在庫あり（発注可能）**")
+        
+        # 型式や単位などの詳細情報
         col1, col2 = st.columns(2)
         with col1:
             st.caption("型式")
             st.write(item.get('発注型式', '-'))
         with col2:
             st.caption("単位")
-            st.write(f"{item.get('発注数量', '')}{item.get('発注単位', '')}")
+            st.write(f"{item.get('発注数量', '')} {item.get('発注単位', '')}")
+
+        st.divider()
