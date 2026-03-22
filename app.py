@@ -15,9 +15,15 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # Secretsから取得（ここがNoneだとエラーになります）
-GAS_URL = st.secrets.get("https://script.google.com/macros/s/AKfycbxHG2Al8nn_jN7Dh6xHHD9NFZaBJw0DqbrW4v48L9TELC9ZHjae6671wGBuDhSr4ZcM/exec")
-API_TOKEN = st.secrets.get("EMSystem-qr-secure-2026")
-
+try:
+    # 💡 カッコの中は「箱の名前」を指定します
+    GAS_URL = st.secrets["GAS_URL"]
+    API_TOKEN = st.secrets["API_TOKEN"]
+except Exception as e:
+    st.error(f"❌ Secrets読み込みエラー: {e}")
+    st.info("Streamlit CloudのSettings > Secretsを確認してください。")
+    st.stop()
+    
 # URLパラメータ解析（iPhone/PC共通）
 # 新しいStreamlitの仕様に合わせ、確実に文字列として取得
 params = st.query_params
